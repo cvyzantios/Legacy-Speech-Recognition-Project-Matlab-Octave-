@@ -1,0 +1,139 @@
+%% SPEECH RECOGNITION PROJECT
+% Legacy version - developed around 2013
+%
+% This script implements a frame-based speech recognition approach
+% using Bayesian classification, Fuzzy C-Means clustering,
+% Power Spectral Density estimation and Gaussian Mixture Models.
+
+%% Load WAV File
+
+% Ask the user to enter the path of the WAV file
+filename = input('Enter the path of the WAV file: ', 's');
+
+% Load the selected WAV file
+[speech, Fs] = audioread(filename);
+
+% Display information about the selected file
+disp(' ');
+disp('File loaded successfully.');
+disp(['Selected file: ' filename]);
+disp(['Sampling frequency: ' num2str(Fs) ' Hz']);
+disp(' ');
+
+%% Frame Configuration
+
+seglength = 160;                    % Define the frame length
+overlap = seglength / 2;            % Define the frame overlap
+stepsize = seglength - overlap;     % Define the step size between frames
+
+nframes = floor(length(speech) / stepsize) - 1;
+
+%% Initial Variables
+
+samp1 = 1;
+samp2 = seglength;                  % Initialize frame start and end
+
+%% Frame-by-Frame Processing
+
+for i = 1:nframes
+
+    %% Bayesian Classification
+
+    rows = 1000;
+    columns = 6;
+
+    % Generate random indices for the training data
+    indX = randperm(size(fulldata, 1));
+    indX = indX(1:rows)';
+
+    % Select the corresponding data
+    data = fulldata(indX, indY);
+
+    % Generate another set of random indices
+    indX1 = randperm(size(fulldata, 1));
+    indX1 = indX1(1:rows)';
+
+    %% Data Normalization
+
+    % Apply normalization to every cell
+    % data = zscore(data);
+
+    training_data = data;
+
+    % Define the target classes for the training data
+    target_class = labels(indX, :);
+
+    % Classify the test data using diagonal linear discriminant analysis
+    class = classify(test_data, training_data, target_class, 'diaglinear');
+
+    % Generate the confusion matrix
+    confusionmat(target_class, class);
+
+    %% Fuzzy C-Means Clustering
+
+    clusters = 4;
+
+    % Generate a colormap for the clusters
+    CM = colormap(jet(clusters));
+
+    % Define FCM options
+    options(1) = 12.0;              % Fuzziness exponent
+    options(2) = 1000;              % Maximum number of iterations
+    options(3) = 1e-10;             % Minimum improvement
+    options(4) = 0;                 % Display option
+
+    % Apply Fuzzy C-Means clustering to the data
+    [centers, U, objFun] = fcm(data, clusters, options);
+
+    % Determine the cluster with the highest membership value
+    [~, y] = max(U);
+
+    %% Classification of the Selected Cluster
+
+    % Select the numerical training data
+    training_data = newTrainingData(indX1, indY);
+
+    % Select cluster 2 from the FCM phase for classification
+    test_data = fulldata(indX(y == 2), :);
+
+    % Obtain the actual class labels of the selected cluster
+    test_class = labels(indX(y == 2), :);
+
+    % Define the target classes of the training data
+    target_class = labels(indX, :);
+
+    % Classify the selected cluster
+    class = classify(test_data, training_data, target_class, 'diaglinear');
+
+    % Generate the confusion matrix
+    confusionmat(test_class, class);
+
+    %% Process Current Speech Frame
+
+    % Keep the current frame for analysis
+    frame = speech(samp1:samp2);
+
+    % Move to the next analysis frame
+    samp1 = samp1 + stepsize;
+    samp2 = samp2 + stepsize;
+
+end
+
+%% Power Spectral Density (PSD)
+
+order = 12;                         % Autoregressive model order
+nfft = 512;                         % Number of FFT points
+
+% Estimate the Power Spectral Density using the Yule-Walker method
+pyulear(speech, order, nfft, Fs);
+
+%% Gaussian Mixture Model (GMM)
+
+% Number of Gaussian mixture components
+M = 8;
+
+% Train the Gaussian Mixture Model using MFCC training data
+model = gmdistribution.fit(MFCCtraindata, M);
+
+% Calculate posterior probabilities for the test data
+[P, log_like] = posterior(gmmmodel, testdata);
